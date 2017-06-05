@@ -52,7 +52,6 @@ public class UploadServlet extends HttpServlet {
 	String approvedString;
 	String configFilePath = Constants.CONFIG_FILE_PATH;
 
-	
 	public void init() {
 		ResourceBundle configBundle = ResourceBundle.getBundle(Constants.CONFIG);
 		uploadFilePath = configBundle.getString(Constants.UPLOAD_PATH);
