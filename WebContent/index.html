@@ -13,55 +13,57 @@
 		</div>
 	</div>
 	<div id="wrapper">
-		<div style="width: 100%; height: 300px">
+		<div style="width: 100%; height: 200px">
 			<div id="cropImage"></div>
 		</div>
 		<div style="background: #aaaaaa;display:none" id="processButtons">
 			<table style="width:100%">
 				<tr>
 					<td><input type="button" class="fullwidth" value="Process"
-						id="sendButton" style="display: none" class="button"
-						onclick="send()" /></td>
+						id="sendButton" class="actionbutton"
+												onclick="send()" /></td>
 					<td><input type="button" class="fullwidth" value="Rotate Left"
-						id="rotateLeft" style="display: none" class="button"
+						id="rotateLeft" class="actionbutton"
 						onclick="rotateLeft()" /></td>
 					<td><input type="button" class="fullwidth" value="Rotate Right"
-						id="rotateRight" style="display: none" class="button"
+						id="rotateRight" class="actionbutton"
 						onclick="rotateRight()" /></td>
 				</tr>
 			</table>
 		</div>
-		<hr />
-		<div id="uploadbox" class="center left splitbox">
-			<span id="useWebcam" class="button">Use Webcam</span><br />
-			<hr/>
-			<span id="useFile" class="button">Use File</span>
-			<hr/>
-			<div id="tagbox">
-				Approved Tags<input class="textbox" type="text" name="approved"
-					id="approved"
-					placeholder="Eg. person, man, woman" /><br />
-				Rejected Tags<input
-					class="textbox" type="text" name="rejected" id="rejected"
-					placeholder="Eg. cat,dog, animal" />
-			</div>
-
-		</div>
-		<div id="inspector" class="right splitbox" style="display: none">
-			<div id="choosers">
-				<div id="webcambox" style="display: none">
-					<video id="videoID" autoplay></video>
-					<canvas id="canvasID" style="display: none"></canvas>
-					<input type="button" id="takephoto" class="center"
-						value="Take photo" class="button" onclick="capture()" />
+		<div id="subwrapper">
+			<div id="uploadbox" class="center left splitbox">
+				<ul>
+					<li id="useWebcam" class="actionbutton">Use Webcam</li>
+					<li id="useFile" class="actionbutton">Use File</li>
+				</ul>
+				<div id="tagbox">
+					Approved Tags<input class="textbox" type="text" name="approved"
+						id="approved"
+						placeholder="defaults to : person, man, woman" /><br />
+					Rejected Tags<input
+						class="textbox" type="text" name="rejected" id="rejected"
+						placeholder="defaults to : cat,dog, animal" />
 				</div>
-				<div id="filebox" style="display: none">
-					<input type="file" name="file" accept="image/*" id="file"
-						class="button" size="50" />
-				</div>
+	
 			</div>
-			<div id="results"></div>
+			<div id="inspector" class="right splitbox" style="display: none">
+				<div id="choosers">
+					<div id="webcambox" style="display: none">
+						<video id="videoID" autoplay></video>
+						<canvas id="canvasID" style="display: none"></canvas>
+						<input type="button" id="takephoto"
+							value="Take photo" class="actionbutton" onclick="capture()" />
+					</div>
+					<div id="filebox" style="display: none">
+						<input type="file" name="file" accept="image/*" id="file"
+							size="50" />
+					</div>
+				</div>
+				<div id="results" style="height:100px;"></div>
+			</div>
 		</div>
+		<div id="finalstatus" style="display:none"></div>
 	</div>
 	<script src="/ImageReco/js/croppie.min.js"></script>
 </body>
@@ -123,7 +125,7 @@
 			},
 			boundary : {
 				width : 980,
-				height : 300
+				height : 200
 			},
 			showZoomer : false,
 			enableOrientation : true,
@@ -148,7 +150,7 @@
 					enableOrientation : true,
 					boundary : {
 						width : 980,
-						height : 300
+						height : 200
 					},
 					showZoomer : false,
 					url : event.target.result,
@@ -161,16 +163,13 @@
 	});
 	
 	function hideButtons(){
-		$("#sendButton").hide();
-		$("#rotateLeft").hide();
-		$("#rotateRight").hide();
+		$("#processButtons").hide();
+		$("#finalstatus").fadeOut();
 	}
 	
 	function showButtons(){
 		$("#processButtons").show();
-		$("#sendButton").show();
-		$("#rotateLeft").show();
-		$("#rotateRight").show();
+		$("#finalstatus").fadeOut();
 	}
 	
 	function rotateLeft(){
@@ -212,6 +211,36 @@
 					$("#choosers").fadeOut();
 					$("#results").fadeIn();
 					$("#results").html(data);
+					
+					var htmlToShow = "";
+					var results = data;
+					
+					var safesearch = results.safeSearch;
+					var faceCount = results.facecount;
+					var isApproved = results.isApproved;
+					var labels = results.labels;
+					
+					htmlToShow += "<b>Face Count : </b><br/>" + faceCount + "<br/>";
+					
+					if(labels.length>0){
+						htmlToShow = "<b>Tags : </b><br/><ul>"
+						for(i=0;i<labels.length;i++){
+							var label = labels[i];
+							htmlToShow += "<li class='actionbutton'>" + label.label + " - " + label.score + "</li>";
+						}	
+					}
+					
+					$("#results").html(htmlToShow);
+					if(isApproved){
+						$("#finalstatus").html("APPROVED");
+						$("#finalstatus").css("background-color", "green");
+						$("#finalstatus").fadeIn();
+					} else {
+						$("#finalstatus").html("REJECTED");	
+						$("#finalstatus").css("background-color", "red");
+						$("#finalstatus").fadeIn();
+					}
+					
 				},
 				error : function(data) {
 					$("#sendButton").prop('disabled', false);
