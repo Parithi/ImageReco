@@ -27,6 +27,8 @@ import org.apache.commons.fileupload.FileItem;
 import org.apache.commons.fileupload.FileUploadBase.SizeLimitExceededException;
 import org.apache.commons.fileupload.disk.DiskFileItemFactory;
 import org.apache.commons.fileupload.servlet.ServletFileUpload;
+import org.json.JSONArray;
+import org.json.JSONObject;
 
 import com.google.cloud.vision.spi.v1.ImageAnnotatorClient;
 import com.google.cloud.vision.v1.AnnotateImageRequest;
@@ -63,12 +65,15 @@ public class UploadServlet extends HttpServlet {
 		
 		// Initiate Response
 		java.io.PrintWriter out = response.getWriter();
-		response.setContentType("text/html");
+		response.setContentType("text/json");
+		
+		JSONObject resultData = new JSONObject();
 
 		// Check whether the request is valid
 		isMultipart = ServletFileUpload.isMultipartContent(request);
 		if (!isMultipart) {
-			out.println("<p>Not a valid request/file. Please try again.</p>");
+			resultData.put("message", "Not a valid request/file. Please try again.");
+			out.println(resultData);
 			return;
 		}
 		
@@ -164,7 +169,6 @@ public class UploadServlet extends HttpServlet {
 			BatchAnnotateImagesResponse batchImageResponse = vision.batchAnnotateImages(requests);
 			List<AnnotateImageResponse> responses = batchImageResponse.getResponsesList();
 			DecimalFormat f = new DecimalFormat("##.00");
-			out.println("<strong>Tags :</strong><br/>");
 
 			// Analyze each response from API
 			
@@ -178,29 +182,58 @@ public class UploadServlet extends HttpServlet {
 				
 				// Check if the response has any of the approved tags and doesn't have any rejected tags
 
-				for (EntityAnnotation annotation : res.getLabelAnnotationsList()) {
-					if (approvedTagsList.contains(annotation.getDescription())) {
-						isApproved = true;
-						approvedString = annotation.getDescription();
+				if(res.getLabelAnnotationsList().size() > 0){
+					JSONArray labelArray = new JSONArray();
+					
+					for (EntityAnnotation annotation : res.getLabelAnnotationsList()) {
+						if (approvedTagsList.contains(annotation.getDescription())) {
+							isApproved = true;
+							approvedString = annotation.getDescription();
+						}
+	
+						if (rejectedTagsList.contains(annotation.getDescription())) {
+							isApproved = false;
+						}
+						JSONObject label = new JSONObject();
+						label.put("label", annotation.getDescription());
+						label.put("score", f.format(annotation.getScore() * 100));
+						
+						labelArray.put(label);
 					}
-
-					if (rejectedTagsList.contains(annotation.getDescription())) {
-						isApproved = false;
-					}
-					out.println(annotation.getDescription() + " (" + f.format(annotation.getScore() * 100) + "%)<br/>");
+					
+					resultData.put("labels", labelArray);
 				}
-
-				out.println("<br/><strong>SafeSearch:</strong><br/>" + res.getSafeSearchAnnotation().toString() + "<br/>");
-				out.println("<br/><strong>Number of Faces:</strong> " + res.getFaceAnnotationsCount() + "<br/>");
 				
-				// An approved image must have only one face.
-				if (res.getFaceAnnotationsCount() > 1 || res.getFaceAnnotationsCount() == 0) {
+
+				resultData.put("faceCount", res.getFaceAnnotationsCount());
+
+				// SafeSearch 0 - UNKNOWN, VERY_UNLIKELY - 1, UNLIKELY - 2, POSSIBLE - 3, LIKELY - 4, VERY_LIKELY - 5
+				
+				JSONObject safeSearch = new JSONObject();
+				safeSearch.put("adult",res.getSafeSearchAnnotation().getAdultValue());
+				safeSearch.put("spoof",res.getSafeSearchAnnotation().getSpoofValue());
+				safeSearch.put("medical",res.getSafeSearchAnnotation().getMedicalValue());
+				safeSearch.put("violence",res.getSafeSearchAnnotation().getViolenceValue());
+				resultData.put("safeSearch", safeSearch);
+
+				// An approved image must have only one face and should be safe
+				if (res.getFaceAnnotationsCount() > 1 || res.getFaceAnnotationsCount() == 0 ||
+						res.getSafeSearchAnnotation().getAdultValue() > 2 ||
+						res.getSafeSearchAnnotation().getSpoofValue() > 2 ||
+						res.getSafeSearchAnnotation().getMedicalValue() > 2 ||
+						res.getSafeSearchAnnotation().getViolenceValue() > 2) {
 					isApproved = false;
 				}
 			}
 
-			String approvedHtml = ((isApproved) ? (" for tag '" + approvedString + "'") : "");
-			out.println("<br/><h2>APPROVED : " + isApproved + approvedHtml + "</h2>");
+			// Prepare Final Response and output the response
+			resultData.put("isApproved", isApproved);
+			
+			if(isApproved){
+				resultData.put("approvedTag", approvedString);
+			}
+			
+			out.println(resultData);
 			
 			// Delete the file if it's not approved
 			if(!isApproved){
