@@ -1,0 +1,227 @@
+<html>
+<head>
+<link rel="stylesheet" href="/ImageReco/css/croppie.css">
+<link rel="stylesheet" href="/ImageReco/css/styles.css">
+<script
+	src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
+</head>
+<body>
+	<div id="header">
+		<div id="logoheader">
+			<img class="logo" src="/ImageReco/img/csiLogo.png"
+				alt="Compusystems" />
+		</div>
+	</div>
+	<div id="wrapper">
+		<div style="width: 100%; height: 300px">
+			<div id="cropImage"></div>
+		</div>
+		<div style="background: #aaaaaa;display:none" id="processButtons">
+			<table style="width:100%">
+				<tr>
+					<td><input type="button" class="fullwidth" value="Process"
+						id="sendButton" style="display: none" class="button"
+						onclick="send()" /></td>
+					<td><input type="button" class="fullwidth" value="Rotate Left"
+						id="rotateLeft" style="display: none" class="button"
+						onclick="rotateLeft()" /></td>
+					<td><input type="button" class="fullwidth" value="Rotate Right"
+						id="rotateRight" style="display: none" class="button"
+						onclick="rotateRight()" /></td>
+				</tr>
+			</table>
+		</div>
+		<hr />
+		<div id="uploadbox" class="center left splitbox">
+			<span id="useWebcam" class="button">Use Webcam</span><br />
+			<hr/>
+			<span id="useFile" class="button">Use File</span>
+			<hr/>
+			<div id="tagbox">
+				Approved Tags<input class="textbox" type="text" name="approved"
+					id="approved"
+					placeholder="Eg. person, man, woman" /><br />
+				Rejected Tags<input
+					class="textbox" type="text" name="rejected" id="rejected"
+					placeholder="Eg. cat,dog, animal" />
+			</div>
+
+		</div>
+		<div id="inspector" class="right splitbox" style="display: none">
+			<div id="choosers">
+				<div id="webcambox" style="display: none">
+					<video id="videoID" autoplay></video>
+					<canvas id="canvasID" style="display: none"></canvas>
+					<input type="button" id="takephoto" class="center"
+						value="Take photo" class="button" onclick="capture()" />
+				</div>
+				<div id="filebox" style="display: none">
+					<input type="file" name="file" accept="image/*" id="file"
+						class="button" size="50" />
+				</div>
+			</div>
+			<div id="results"></div>
+		</div>
+	</div>
+	<script src="/ImageReco/js/croppie.min.js"></script>
+</body>
+<script type="text/javascript">
+	var isUsingWebCam = false;
+	var video = document.getElementById('videoID');
+	var canvas = document.getElementById('canvasID');
+	var context = canvas.getContext('2d');
+	var vanilla;
+	window.URL = window.URL || window.webkitURL;
+	navigator.getUserMedia = navigator.getUserMedia
+			|| navigator.webkitGetUserMedia || navigator.mozGetUserMedia
+			|| navigator.msGetUserMedia;
+
+	$("#useWebcam").click(function() {
+		isUsingWebCam = true;
+		$("#choosers").fadeIn();
+		$("#inspector").fadeIn();
+		$("#webcambox").show();
+		$("#videoID").show();
+		$("#takephoto").show();
+		$("#filebox").hide();
+		hideButtons();
+		$("#cropImage").html('');
+		$("#results").html('');
+	});
+
+	$("#useFile").click(function() {
+		isUsingWebCam = false;
+		$("#choosers").fadeIn();
+		$("#inspector").show();
+		$("#webcambox").hide();
+		$("#takephoto").hide();
+		hideButtons();
+		$("#filebox").show();
+		$("#cropImage").html('');
+		$("#results").html('');
+	});
+
+	navigator.getUserMedia({
+		video : true
+	}, function(stream) {
+		video.src = window.URL.createObjectURL(stream);
+	}, function(e) {
+		console.log('An error happened:', e);
+	});
+
+	function capture() {
+		$("#videoID").hide();
+		$("#takephoto").hide();
+		showButtons();
+		context.drawImage(video, 0, 0, canvas.width, canvas.height);
+		var img = canvas.toDataURL("image/png");
+		var el = document.getElementById('cropImage');
+		vanilla = new Croppie(el, {
+			viewport : {
+				width : 200,
+				height : 200
+			},
+			boundary : {
+				width : 980,
+				height : 300
+			},
+			showZoomer : false,
+			enableOrientation : true,
+			url : img,
+		});
+	}
+
+	$('#file').on('change', function(event) {
+		$("#fileCanvasID").fadeIn();
+		var image, file;
+		image = new Image;
+		file = new FileReader;
+
+		file.onload = function(event) {
+			image.onload = function() {
+				var el = document.getElementById('cropImage');
+				vanilla = new Croppie(el, {
+					viewport : {
+						width : 200,
+						height : 200
+					},
+					enableOrientation : true,
+					boundary : {
+						width : 980,
+						height : 300
+					},
+					showZoomer : false,
+					url : event.target.result,
+				});
+			};
+			image.src = event.target.result;
+			showButtons();
+		};
+		file.readAsDataURL(event.target.files[0]);
+	});
+	
+	function hideButtons(){
+		$("#sendButton").hide();
+		$("#rotateLeft").hide();
+		$("#rotateRight").hide();
+	}
+	
+	function showButtons(){
+		$("#processButtons").show();
+		$("#sendButton").show();
+		$("#rotateLeft").show();
+		$("#rotateRight").show();
+	}
+	
+	function rotateLeft(){
+		vanilla.rotate(-90);
+	}
+	
+	function rotateRight(){
+		vanilla.rotate(90);
+	}
+
+	function send() {
+		$("#sendButton").prop('value', 'Please Wait..');
+		$("#sendButton").prop('disabled', true);
+		var fd = new FormData();
+
+		fd.append('approved', $("#approved").val());
+		fd.append('rejected', $("#rejected").val());
+
+		vanilla.result({type:'blob',size:{width:500, height:500},quality:0.5}).then(function(blob) {
+			if(blob.size > 3145728){ // File should not be more than 3mb
+				alert("Image size too large. Please crop further or try again with a different image.  " + blob.size);
+				$("#sendButton").prop('disabled', false);
+				$("#sendButton").prop('value', 'Process');
+				$("#choosers").fadeOut();
+				$("#results").fadeIn();
+				return;
+			}
+			
+			fd.append('file', blob);
+			$.ajax({
+				url : '/ImageReco/UploadServlet',
+				data : fd,
+				processData : false,
+				contentType : false,
+				type : 'POST',
+				success : function(data) {
+					$("#sendButton").prop('disabled', false);
+					$("#sendButton").prop('value', 'Process');
+					$("#choosers").fadeOut();
+					$("#results").fadeIn();
+					$("#results").html(data);
+				},
+				error : function(data) {
+					$("#sendButton").prop('disabled', false);
+					$("#sendButton").prop('value', 'Process');
+					$("#choosers").fadeOut();
+					$("#results").fadeIn();
+					$("#results").html("An error occured while processing your request. Please try again.");
+				}
+			});
+		});
+	}
+</script>
+</html>

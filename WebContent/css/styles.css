@@ -1,0 +1,110 @@
+*{
+    margin:0px;
+    padding:0px;
+}
+
+body{
+    font-family: "Segoe UI","Myriad Pro", Helvetica, Arial, sans-serif;
+    font-size: 14px;
+    background: #efefef;
+    line-height: 20px;
+}
+.box{
+	width:510px;
+	height:400px;
+}
+
+.center{
+    text-align: center;
+}
+
+#wrapper{
+    width: 980px;
+    height: 100%;
+    margin: 0 auto;
+    background: #fefefe;
+    -webkit-box-shadow: 0 5px 10px #aaa;
+           -moz-box-shadow: 0 5px 10px #aaa;
+                box-shadow: 0 5px 10px #aaa;
+}
+
+#header{
+    padding: 16px;
+    border-bottom: 2px solid #007297;
+    font-size: 18px;
+    background: #fff;
+    -webkit-box-shadow: 0 5px 10px #aaa;
+       -moz-box-shadow: 0 5px 10px #aaa;
+            box-shadow: 0 5px 10px #aaa;
+}
+
+#logoheader{
+    display: block;
+    width: 274px;
+    overflow: hidden;
+}
+
+.splitbox{
+    width:480px;
+}
+
+hr {
+    display: block;
+    height: 1px;
+    border: 0;
+    border-top: 1px solid #ccc;
+    margin: 1em 0;
+    padding: 0;
+}
+
+.left{
+    float:left;
+}
+
+.right{
+    float:right;
+    border-left: 1px solid #ccc;
+    margin: 1em 0;
+    padding: 0;
+    display: block;
+    height: 1px;
+    border: 0;
+}
+
+#videoID{
+    height: 200px;
+    width: 400px;
+}
+
+.fullwidth{
+    width: 100%;
+}
+
+.logo {
+    opacity: 1 !important;
+    max-width: 100%;
+}
+
+input{
+    padding: 14px;
+    font-size: 16px;
+    margin: 4px;
+    height : 30px;
+}
+
+.textbox {
+    width: 100%;
+    padding: 4px;
+    margin-top: 12px;
+}
+
+.button{
+	height:50px;
+	margin:10px;
+}
+
+#approved{
+	position:absolute;
+}
+
+input[type=button] {height: 78px;}
