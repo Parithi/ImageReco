@@ -206,15 +206,15 @@
 				contentType : false,
 				type : 'POST',
 				success : function(data) {
+					console.log(data);
 					$("#sendButton").prop('disabled', false);
 					$("#sendButton").prop('value', 'Process');
 					$("#choosers").fadeOut();
-					$("#results").fadeIn();
-					$("#results").html(data);
 					
 					var htmlToShow = "";
 					var results = data;
 					
+					var message = results.message;
 					var safesearch = results.safeSearch;
 					var faceCount = results.facecount;
 					var isApproved = results.isApproved;
@@ -222,25 +222,31 @@
 					
 					htmlToShow += "<b>Face Count : </b><br/>" + faceCount + "<br/>";
 					
-					if(labels.length>0){
-						htmlToShow = "<b>Tags : </b><br/><ul>"
-						for(i=0;i<labels.length;i++){
-							var label = labels[i];
-							htmlToShow += "<li class='actionbutton'>" + label.label + " - " + label.score + "</li>";
-						}	
-					}
-					
-					$("#results").html(htmlToShow);
-					if(isApproved){
-						$("#finalstatus").html("APPROVED");
-						$("#finalstatus").css("background-color", "green");
-						$("#finalstatus").fadeIn();
+					if(!message){
+						if(labels!=null && labels.length>0){
+							htmlToShow = "<b>Tags : </b><br/><ul>"
+							for(i=0;i<labels.length;i++){
+								var label = labels[i];
+								htmlToShow += "<li class='actionbutton'>" + label.label + " - " + label.score + "</li>";
+							}	
+						}
+						
+						$("#results").html(htmlToShow);
+						if(isApproved){
+							$("#finalstatus").html("APPROVED");
+							$("#finalstatus").css("background-color", "green");
+							$("#finalstatus").fadeIn();
+						} else {
+							$("#finalstatus").html("REJECTED");	
+							$("#finalstatus").css("background-color", "red");
+							$("#finalstatus").fadeIn();
+						}
 					} else {
-						$("#finalstatus").html("REJECTED");	
-						$("#finalstatus").css("background-color", "red");
-						$("#finalstatus").fadeIn();
+						$("#results").html(message);
 					}
 					
+					$("#results").fadeIn();
+
 				},
 				error : function(data) {
 					$("#sendButton").prop('disabled', false);

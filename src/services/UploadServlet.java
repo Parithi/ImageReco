@@ -1,5 +1,7 @@
 package services;
 
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
@@ -13,10 +15,12 @@ import java.nio.file.Paths;
 import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.ResourceBundle;
 
+import javax.imageio.ImageIO;
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
@@ -34,6 +38,9 @@ import com.google.cloud.vision.spi.v1.ImageAnnotatorClient;
 import com.google.cloud.vision.v1.AnnotateImageRequest;
 import com.google.cloud.vision.v1.AnnotateImageResponse;
 import com.google.cloud.vision.v1.BatchAnnotateImagesResponse;
+import com.google.cloud.vision.v1.BoundingPoly;
+import com.google.cloud.vision.v1.CropHint;
+import com.google.cloud.vision.v1.CropHintsAnnotation;
 import com.google.cloud.vision.v1.EntityAnnotation;
 import com.google.cloud.vision.v1.Feature;
 import com.google.cloud.vision.v1.Feature.Type;
@@ -52,7 +59,6 @@ public class UploadServlet extends HttpServlet {
 	String approvedTags;
 	String rejectedTags;
 	String approvedString;
-	String configFilePath = Constants.CONFIG_FILE_PATH;
 
 	public void init() {
 		ResourceBundle configBundle = ResourceBundle.getBundle(Constants.CONFIG);
@@ -77,6 +83,30 @@ public class UploadServlet extends HttpServlet {
 			return;
 		}
 		
+		// Convert Tags to List
+
+		HashMap<String,Float> approvedTagsList = new HashMap<String,Float>();
+		String[] approvedTagArray = approvedTags.split("\\s*,\\s*");
+
+		if(approvedTagArray.length > 0){
+			for(int j=0;j<approvedTagArray.length;j++){
+				String[] approvedTagParts = approvedTagArray[j].split("\\|");
+				if(approvedTagParts.length == 2){
+					approvedTagsList.put(approvedTagParts[0], Float.valueOf(approvedTagParts[1]));
+				} else {
+					resultData.put("message", "approved Tags are not configured correctly. Please use this example : approvedTags=person|90,man|90");
+					out.println(resultData);
+					return;
+				}
+			}
+		} else {
+			resultData.put("message", "Config file is not configured correctly");
+			out.println(resultData);
+			return;
+		}
+		
+		List<String> rejectedTagsList = Arrays.asList(rejectedTags.split("\\s*,\\s*"));
+		
 		// Save the response to a file
 
 		DiskFileItemFactory factory = new DiskFileItemFactory();
@@ -85,6 +115,7 @@ public class UploadServlet extends HttpServlet {
 
 		ServletFileUpload upload = new ServletFileUpload(factory);
 		upload.setSizeMax(maxFileSize);
+		String fileName = "blob_" + System.currentTimeMillis() + ".png";
 
 		try {
 			List<FileItem> fileItems = upload.parseRequest(request);
@@ -92,7 +123,6 @@ public class UploadServlet extends HttpServlet {
 			
 			while (i.hasNext()) {
 				FileItem fi = (FileItem) i.next();
-				String fileName = "blob_" + System.currentTimeMillis() + ".png";
 
 				if (!fi.isFormField()) {
 					// Write the uploaded data request to file
@@ -112,11 +142,6 @@ public class UploadServlet extends HttpServlet {
 				}
 			}
 			
-			// Convert Tags to List
-
-			List<String> approvedTagsList = Arrays.asList(approvedTags.split("\\s*,\\s*"));
-			List<String> rejectedTagsList = Arrays.asList(rejectedTags.split("\\s*,\\s*"));
-
 			// Start Google Vision API Recognition
 
 			ImageAnnotatorClient vision = null;
@@ -136,6 +161,7 @@ public class UploadServlet extends HttpServlet {
 			} catch (IOException e) {
 				e.printStackTrace();
 			}
+			
 			ByteString imgBytes = ByteString.copyFrom(data);
 
 			// Adding all the features we require
@@ -147,7 +173,8 @@ public class UploadServlet extends HttpServlet {
 			Feature faceFeature = Feature.newBuilder().setType(Type.FACE_DETECTION).build();
 			Feature landMarkFeature = Feature.newBuilder().setType(Type.LANDMARK_DETECTION).build();
 			Feature safeSearchFeature = Feature.newBuilder().setType(Type.SAFE_SEARCH_DETECTION).build();
-
+			Feature cropFeature = Feature.newBuilder().setType(Type.CROP_HINTS).build();
+			
 			// Prepare the request for recogntion by API 
 			
 			List<Feature> featuresList = new ArrayList<Feature>();
@@ -156,6 +183,7 @@ public class UploadServlet extends HttpServlet {
 			featuresList.add(faceFeature);
 			featuresList.add(landMarkFeature);
 			featuresList.add(safeSearchFeature);
+			featuresList.add(cropFeature);
 
 			AnnotateImageRequest annotationRequest = AnnotateImageRequest
 														.newBuilder()
@@ -170,6 +198,9 @@ public class UploadServlet extends HttpServlet {
 			List<AnnotateImageResponse> responses = batchImageResponse.getResponsesList();
 			DecimalFormat f = new DecimalFormat("##.00");
 
+			// Free memory
+			imgBytes = null;
+			
 			// Analyze each response from API
 			
 			for (AnnotateImageResponse res : responses) {
@@ -186,7 +217,7 @@ public class UploadServlet extends HttpServlet {
 					JSONArray labelArray = new JSONArray();
 					
 					for (EntityAnnotation annotation : res.getLabelAnnotationsList()) {
-						if (approvedTagsList.contains(annotation.getDescription())) {
+						if (approvedTagsList.containsKey(annotation.getDescription()) && ((annotation.getScore() * 100) >= approvedTagsList.get(annotation.getDescription()))) {
 							isApproved = true;
 							approvedString = annotation.getDescription();
 						}
@@ -204,8 +235,13 @@ public class UploadServlet extends HttpServlet {
 					resultData.put("labels", labelArray);
 				}
 				
-
+				BoundingPoly faceBoundingPoly = null;
+				
 				resultData.put("faceCount", res.getFaceAnnotationsCount());
+				if(res.getFaceAnnotationsCount() == 1){
+					faceBoundingPoly = res.getFaceAnnotationsList().get(0).getBoundingPoly();
+					resultData.put("faceVertices", res.getFaceAnnotationsList().get(0).toString());
+				}
 
 				// SafeSearch 0 - UNKNOWN, VERY_UNLIKELY - 1, UNLIKELY - 2, POSSIBLE - 3, LIKELY - 4, VERY_LIKELY - 5
 				
@@ -223,6 +259,47 @@ public class UploadServlet extends HttpServlet {
 						res.getSafeSearchAnnotation().getMedicalValue() > 2 ||
 						res.getSafeSearchAnnotation().getViolenceValue() > 2) {
 					isApproved = false;
+				}
+				
+				if(isApproved && faceBoundingPoly!=null){
+					CropHintsAnnotation cropHintAnnotation = res.getCropHintsAnnotation();
+					if(cropHintAnnotation!=null){
+						byte[] imageData = null;
+						try {
+							imageData = Files.readAllBytes(path);
+						} catch (IOException e) {
+							e.printStackTrace();
+						}
+						
+						List<CropHint> cropHints = cropHintAnnotation.getCropHintsList();
+						System.out.println(cropHints);
+						BufferedImage originalImage = createImageFromBytes(imageData);
+
+//						System.out.println("-----------width : " + originalImage.getWidth() + ":" + originalImage.getHeight());
+//						System.out.println(cropHints.get(0).getBoundingPoly().getVertices(0).getX() + "---" +
+//												cropHints.get(0).getBoundingPoly().getVertices(0).getY() + "---" +
+//												(cropHints.get(0).getBoundingPoly().getVertices(2).getX()) + "---" +
+//												(cropHints.get(0).getBoundingPoly().getVertices(2).getY()));
+//						
+//						BufferedImage croppedImage = originalImage.getSubimage(cropHints.get(0).getBoundingPoly().getVertices(0).getX(),
+//												cropHints.get(0).getBoundingPoly().getVertices(0).getY(),
+//												cropHints.get(0).getBoundingPoly().getVertices(2).getX() - cropHints.get(0).getBoundingPoly().getVertices(0).getX(),
+//												cropHints.get(0).getBoundingPoly().getVertices(2).getY() - cropHints.get(0).getBoundingPoly().getVertices(0).getY());
+//						
+						int margin = Constants.IMAGE_MARGIN;
+						int startX = ((faceBoundingPoly.getVertices(0).getX()-margin) > 0) ? (faceBoundingPoly.getVertices(0).getX()-margin) : faceBoundingPoly.getVertices(0).getX(); 
+						int startY = ((faceBoundingPoly.getVertices(0).getY()-margin) > 0) ? (faceBoundingPoly.getVertices(0).getY()-margin) : faceBoundingPoly.getVertices(0).getY();
+						int width = faceBoundingPoly.getVertices(2).getX() - faceBoundingPoly.getVertices(0).getX();
+						int height = faceBoundingPoly.getVertices(2).getY() - faceBoundingPoly.getVertices(0).getY();
+						int endX = ((width + margin) < originalImage.getWidth()) ?(width + margin) : width;
+						int endY = ((height + margin) < originalImage.getHeight()) ?(height + margin) : height;
+						
+						
+						BufferedImage croppedImage = originalImage.getSubimage(startX,startY,endX,endY);
+						
+						File outputfile = new File(uploadFilePath + "cropped_" + fileName);
+						ImageIO.write(croppedImage, "png", outputfile);
+					}
 				}
 			}
 
@@ -243,9 +320,15 @@ public class UploadServlet extends HttpServlet {
 		} catch(SizeLimitExceededException ex){
 			out.println("<p>Image is larger than the max fileUpload limit : "+ ex + "</p>");
 			ex.printStackTrace(out);
+			if(file!=null){
+				file.delete();
+			}
 		} catch (Exception ex) {
 			ex.printStackTrace(out);
 			ex.printStackTrace();
+			if(file!=null){
+				file.delete();
+			}
 		}
 	}
 
@@ -304,5 +387,14 @@ public class UploadServlet extends HttpServlet {
 	protected FileOutputStream createOutputStream(File imageFile) throws FileNotFoundException {
 		imageFile.getParentFile().mkdirs();
 		return new FileOutputStream(imageFile);
+	}
+	
+	private BufferedImage createImageFromBytes(byte[] imageData) {
+	    ByteArrayInputStream bais = new ByteArrayInputStream(imageData);
+	    try {
+	        return ImageIO.read(bais);
+	    } catch (IOException e) {
+	        throw new RuntimeException(e);
+	    }
 	}
 }
