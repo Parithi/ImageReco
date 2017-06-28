@@ -20,7 +20,8 @@ body{
 
 #wrapper{
     width: 980px;
-    height: 600px;
+    height: 100%;
+    overflow-y : hidden;
     margin: 0 auto;
     background: #fefefe;
     -webkit-box-shadow: 0 5px 10px #aaa;

@@ -1,14 +1,14 @@
 <html>
 <head>
-<link rel="stylesheet" href="/ImageReco/css/croppie.css">
-<link rel="stylesheet" href="/ImageReco/css/styles.css">
+<link rel="stylesheet" href="css/croppie.css">
+<link rel="stylesheet" href="css/styles.css">
 <script
 	src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
 </head>
 <body>
 	<div id="header">
 		<div id="logoheader">
-			<img class="logo" src="/ImageReco/img/csiLogo.png"
+			<img class="logo" src="img/csiLogo.png"
 				alt="Compusystems" />
 		</div>
 	</div>
@@ -38,9 +38,13 @@
 					<li id="useFile" class="actionbutton">Use File</li>
 				</ul>
 				<div id="tagbox">
+				    <input class="textbox" type="text" name="evt_id"
+						id="evt_id" placeholder="Enter EVT_ID"/>
+					<input class="textbox" type="text" name="reg_uid"
+						id="reg_uid" placeholder="Enter REG_UID"/><br />
 					Approved Tags<input class="textbox" type="text" name="approved"
 						id="approved"
-						placeholder="defaults to : person, man, woman" /><br />
+						placeholder="defaults to : person|90,man|90,woman|90" /><br />
 					Rejected Tags<input
 						class="textbox" type="text" name="rejected" id="rejected"
 						placeholder="defaults to : cat,dog, animal" />
@@ -65,7 +69,7 @@
 		</div>
 		<div id="finalstatus" style="display:none"></div>
 	</div>
-	<script src="/ImageReco/js/croppie.min.js"></script>
+	<script src="js/croppie.min.js"></script>
 </body>
 <script type="text/javascript">
 	var isUsingWebCam = false;
@@ -181,12 +185,20 @@
 	}
 
 	function send() {
+		
+		if(!($.isNumeric($("#evt_id").val()) && $.isNumeric($("#reg_uid").val()))){
+			alert("EVT_ID and REG_ID must be numeric");
+			return;
+		}
+		
 		$("#sendButton").prop('value', 'Please Wait..');
 		$("#sendButton").prop('disabled', true);
 		var fd = new FormData();
 
 		fd.append('approved', $("#approved").val());
 		fd.append('rejected', $("#rejected").val());
+		fd.append('evt_id', $("#evt_id").val());
+		fd.append('reg_uid', $("#reg_uid").val());
 
 		vanilla.result({type:'blob',size:{width:500, height:500},quality:0.5}).then(function(blob) {
 			if(blob.size > 3145728){ // File should not be more than 3mb
@@ -197,10 +209,11 @@
 				$("#results").fadeIn();
 				return;
 			}
+
 			
 			fd.append('file', blob);
 			$.ajax({
-				url : '/ImageReco/UploadServlet',
+				url : 'UploadServlet',
 				data : fd,
 				processData : false,
 				contentType : false,
@@ -224,7 +237,7 @@
 					
 					if(!message){
 						if(labels!=null && labels.length>0){
-							htmlToShow = "<b>Tags : </b><br/><ul>"
+							htmlToShow = "<b>Tags : </b><br/><ul>";
 							for(i=0;i<labels.length;i++){
 								var label = labels[i];
 								htmlToShow += "<li class='actionbutton'>" + label.label + " - " + label.score + "</li>";
@@ -236,6 +249,8 @@
 							$("#finalstatus").html("APPROVED");
 							$("#finalstatus").css("background-color", "green");
 							$("#finalstatus").fadeIn();
+							cropSRC = "upload/cropped_blob_" +  $("#evt_id").val() + $("#reg_uid").val() + ".png"
+							$("#cropImage").html("<center><img style='height:200px' src='"+cropSRC+"'/></center>");
 						} else {
 							$("#finalstatus").html("REJECTED");	
 							$("#finalstatus").css("background-color", "red");
